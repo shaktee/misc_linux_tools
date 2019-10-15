@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# qemu hook - This is a hook to add iptables rules for port forwarding to virtual machines in linux.
+# 
+# This file should be saved as /etc/libvirt/hooks/qemu
+#
+# IMPORTANT: Change the "VM NAME" string to match your actual VM Name.
+# In order to create rules to other VMs, just duplicate the below block and configure
+# it accordingly.
+if [ "${1}" = "VM NAME" ]; then
+
+   # Update the following variables to fit your setup
+   GUEST_IP=192.168.122.X
+   GUEST_PORT=3389  # This forwards Remote desktop to the guest
+   HOST_IP=192.168.122.1
+   HOST_PORT=3389
+
+   if [ "${2}" = "stopped" ] || [ "${2}" = "reconnect" ]; then
+	/sbin/iptables -D FORWARD -o virbr0 -d  $GUEST_IP -j ACCEPT
+	/sbin/iptables -t nat -D PREROUTING -p tcp --dport $HOST_PORT -j DNAT --to $GUEST_IP:$GUEST_PORT
+	/sbin/iptables -t nat -D POSTROUTING -p tcp --dport $HOST_PORT -d $GUEST_IP -j SNAT --to $HOST_IP
+   fi
+   if [ "${2}" = "start" ] || [ "${2}" = "reconnect" ]; then
+	/sbin/iptables -I FORWARD -o virbr0 -d  $GUEST_IP -j ACCEPT -m state --state NEW,RELATED,ESTABLISHED
+	/sbin/iptables -t nat -I PREROUTING -p tcp --dport $HOST_PORT -j DNAT --to $GUEST_IP:$GUEST_PORT
+	/sbin/iptables -t nat -I POSTROUTING -p tcp --dport $HOST_PORT -d $GUEST_IP -j SNAT --to $HOST_IP
+   fi
+fi
+
+# https://stackoverflow.com/questions/13772653/kvm-on-ubuntu-port-forwarding-to-a-guest-vm#13829187
+# To see PREROUTING AND POSTROUTING rules..
+# iptables -L -vt nat
